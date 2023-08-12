@@ -5,6 +5,8 @@ cd ot_db_manager
 
 echo "OT_WSERV"
 
+conda init bash
+
 # Activate the Anaconda environment named OT_WSERV
 source activate OT_WSERV
 
