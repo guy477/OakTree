@@ -1,17 +1,20 @@
-#!/bin/bash
+#!/bin/zsh
 
 # Navigate to the directory of the package
 cd ot_db_manager
 
-echo "OT_WSERV"
+conda init zsh
 
-conda init bash
+source ~/.zshrc
 
-# Activate the Anaconda environment named OT_WSERV
-source activate OT_WSERV
+# Activate CONDA ENV BEFORE RUNNING
+# conda activate OT_NET
+conda activate OT_NET
 
 # Install the ot_logging package
 pip install .
+#conda install -n OT_NET .
+#conda run -n OT_NET python -m install .
 
 cd ..
 
@@ -25,5 +28,8 @@ cd ot_logging
 
 pip install .
 
+cd ..
+
 # Pause and wait for user input before closing
 read -p "Press [Enter] key to continue..."
+
