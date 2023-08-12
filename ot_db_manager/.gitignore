@@ -1,0 +1,11 @@
+build/
+cm_db_manager.egg-info/
+__pycache__/
+testing.py
+06-15-data.csv
+last_day.csv
+cm_db_manager.egg-info/
+__pycache__/
+install.bat
+install_DEV-STAG.bat
+install_PRODUCTION.bat
