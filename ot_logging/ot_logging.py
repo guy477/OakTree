@@ -106,7 +106,7 @@ class ot_logging(logging.Logger):
         # else:
 
         #     self.sql_db = ot_db_manager.ot_db_manager(system = '10.100.20.68', uid = 'tpratt', pwd = 'tpratt23', library = 'TMPLIB', table_name = 'CGLOG', logg = self)
-        self.sql_db = ot_db_manager.ot_db_manager(system = '10.0.10.96', uid = 'writer', pwd = 'LA-fcYG6SlqH', library = 'staging', table_name = 'OTLOG', logg = self)
+        self.sql_db = ot_db_manager.ot_db_manager(system = '10.0.10.96', uid = 'writer', pwd = 'LA-fcYg6SlqH', library = 'staging', table_name = 'OTLOG', logg = self)
         self.execution(True)
     
     '''
