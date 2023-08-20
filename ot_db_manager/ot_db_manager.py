@@ -124,6 +124,31 @@ class ot_db_manager:
 
         return df.astype(object).where(pd.notna(df), None)
 
+    def push_blob_to_db(self, table_name, blob):
+        if self.table_exists(table_name):
+            # STEP 2: If there is a table, use set enviornment to use said table
+            self.set_table(table_name)
+        else:
+            self.logging.info('SQL TABLE NOT FOUND')
+
+            self.logging.info('CONSTRUCTING UNIQUE SQL QUERY TO GENERATE NEW TABLE')
+            sql_query = self.generate_table_from_name(table_name)
+
+            # STEP 3: Execute custom query to construct the new Table.
+            self.logging.info('CONSTRUCTING NEW TABLE')
+            self.wrapped_execute(sql_query)
+            
+            sql_query = self.add_columns_to_db_for_blob(table_name)
+
+            self.logging.info('RE-ATTEMPTING TO PUSH DATA TO SQL DATABASE')
+            
+            # STEP 4: Re-call function.
+            return self.push_blob_to_db(table_name, blob)
+        
+        
+        query = f"INSERT INTO {self.library}.{self.table_name} ({','.join(self.columns)}) VALUES ({','.join(['%s']*len(self.columns))})"
+        
+        self.wrapped_execute(query, blob, blob=True)
     """
     Pushes dataframe to database if the corresponding table exists, otherwise creates the necessary table and tries to push again.
     Does all the necessary processing of the table.
@@ -214,7 +239,7 @@ class ot_db_manager:
             self.logging.info('SQL TABLE NOT FOUND')
 
             self.logging.info('CONSTRUCTING UNIQUE SQL QUERY TO GENERATE NEW TABLE')
-            sql_query = self.generate_table_from_df(df, df.name, '')
+            sql_query = self.generate_table_from_name (df.name)
 
             # STEP 3: Execute custom query to construct the new Table.
             self.logging.info('CONSTRUCTING NEW TABLE')
@@ -260,7 +285,8 @@ class ot_db_manager:
         cur_round = 2**math.ceil(math.log2(abs(n) + 1))
         return cur_round if cur_round < maxx else maxx
 
-    def generate_table_from_df(self, df, table_name, system_name):
+
+    def generate_table_from_name(self,table_name):
         query = f"CREATE TABLE {self.library}.{table_name} ("
 
         query += '''
@@ -304,6 +330,18 @@ class ot_db_manager:
             col_name = 'COL_' + str(col_name)
         
         return str(col_name).upper().replace(' ', '_').replace('-', '_').replace('(', '').replace(')', '').replace('%', 'PERC').replace('/', '_')
+
+    def add_columns_to_db_for_blob(self, table_name):
+        self.logging.info('Appending Columns to table for blob')
+        
+        query = f"ALTER TABLE {self.library}.{table_name} ADD COLUMN "
+        query += f"FILE_ID VARCHAR(64) DEFAULT NULL "
+        self.wrapped_execute(query)
+
+        query = f"ALTER TABLE {self.library}.{table_name} ADD COLUMN "
+        query += f"BLOBBED LONGBLOB DEFAULT NULL "
+        self.wrapped_execute(query)
+        
 
     def add_columns_to_db_from_df(self, df, table_name, system_name):
 
@@ -393,25 +431,36 @@ class ot_db_manager:
     # Data is returned element from a prior query in the database.
     # NOTE: THE ROLL BACK FEATURE OF THIS FUNCTION DOES NOT WORK.
     def construct_df(self, data, columns):
-        
-        df = pd.DataFrame(data = data, columns = columns)
+        try:
+            df = pd.DataFrame(data = data, columns = columns)
+        except Exception as e:
+            try:
+                self.logging.error('failed df cons 1')
+                self.logging.error(str(e))
+                df = pd.DataFrame(data = data)
+            except Exception as e:
+                self.logging.error(str(e))
         return df
 
 
     # Wrapper for most execution cases we can encounter.
     # Includes simple error handling with rollback funcionality to minimze malformed queries being pushed to the database.
-    def wrapped_execute(self, query, data = None):
+    def wrapped_execute(self, query, data = None, blob = False):
 
         self.logging.info('EXECUTING: ' + str(query))
-        self.logging.info('DATA: ' + str(data))
-
+        if not blob:
+            self.logging.info('DATA: ' + str(data))
+        else:
+            self.logging.info(f'DATA: {data[0]} -- {str(len(str(data[1])))}' )
         try: 
             # NOTE: this seems to cause errors. commented out until resolvable
             # self.conn.autocommit = auto_commit
             
             if data:
-                
-                self.cu.executemany(query, data)
+                if blob:
+                    self.cu.execute(query, (data[0], data[1].read()))
+                else:
+                    self.cu.executemany(query, data)
                 # for i in data:
                 #     self.logging.info('executing query for :: ' + str(i))
                 #     self.cu.execute(query, i)

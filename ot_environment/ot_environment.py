@@ -10,7 +10,7 @@ class cm_environment():
         self.devs = [name for name in os.listdir(self.directory) if os.path.isdir(os.path.join(self.directory, name))]
         
         # STAGING IS NOT A DEVELOPER
-        self.devs.remove('Staging')
+        self.devs.remove('STAGING')
 
         self.cur_env = None
         self.cur_dev = None
@@ -21,9 +21,9 @@ class cm_environment():
     def get_environment(self):
         cur_dir = os.getcwd().split('\\')
         
-        # Three cases: Development, Staging, and Production.
+        # Three cases: Development, STAGING, and Production.
         # Development is assumed to always take place using a network connection to a user-directory on the Task-Server's C-Drive.
-        # Staging is assumed to always take place on the Task-Servers E-Drive.
+        # STAGING is assumed to always take place on the Task-Servers E-Drive.
         # Production is assumed to always take place ont he Task-Servers E-Drive.
         
         print(cur_dir)
@@ -36,9 +36,9 @@ class cm_environment():
             cur_env = 'Development'
             cur_db_lib = self.directory + cur_dev + '/_RES/paths.json'
 
-        elif 'Staging' == cur_env:
+        elif 'STAGING' == cur_env:
             cur_dev = 'TPRATT'
-            cur_env = 'Staging'
+            cur_env = 'STAGING'
             cur_db_lib = self.directory + cur_env + '/_RES/paths.json'
 
         # else:
@@ -53,7 +53,7 @@ class cm_environment():
         # translate the current working directory - so we can reference global definitions relative to the current environment..
         # Something about this feels messy..
         for i in range(len(cur_dir)):
-            if  cur_dir[i] == 'Production' or cur_dir[i] == 'Staging' or cur_dir[i] in self.devs:
+            if  cur_dir[i] == 'Production' or cur_dir[i] == 'STAGING' or cur_dir[i] in self.devs:
 
                 cur_dir = cur_dir[:i + 1]
                 cur_dir = "\\".join(cur_dir)
