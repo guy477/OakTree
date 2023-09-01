@@ -438,7 +438,9 @@ class ot_db_manager:
                 self.logging.error('failed df cons 1')
                 self.logging.error(str(e))
                 df = pd.DataFrame(data = data)
+                self.logging.info('df constructed')
             except Exception as e:
+                self.logging.error('failed df cons 2 - no df')
                 self.logging.error(str(e))
         return df
 
