@@ -485,7 +485,10 @@ class ot_db_manager:
                 return self.fetch_all()
 
         except Exception as e:
-            self.rollback()
+            try:
+                self.rollback()
+            except Exception as ee:
+                self.logging.error(f'failed to rollback {ee}')
             self.logging.error(str(e))
         
         finally:
