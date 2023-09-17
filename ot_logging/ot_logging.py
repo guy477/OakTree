@@ -17,7 +17,7 @@ class ot_logging(logging.Logger):
         true_attributes = [attr for attr, value in vars(args).items() if value is True]
         self.description = str(true_attributes)[1:-1].replace(' ', '').replace('-', '').replace('\'', '')
 
-        self.filename = '/var/log/ot_logs/' + process_name + '_' + self.description + str(datetime.now().strftime('%Y-%m-%d_%H-%M')) +'.log'
+        self.filename = '/var/log/ot_logs/' + process_name + '_' + self.description + str(datetime.now().strftime('%Y-%m-%d_%H')) +'.log'
 
             # need to auto-resolve user from the given environment
         super().__init__(self.filename, lvl)
