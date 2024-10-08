@@ -14,17 +14,21 @@ import time
 import gc
 
 setcontext(Context(prec=64, rounding=ROUND_HALF_UP))
+thread_local = threading.local()
 
 class ot_db_manager:
 
     def __init__(self, system, uid, pwd, library, table_name, logg = None) -> None:
-
+        self.system = system
+        self.uid = uid
+        self.pwd = pwd
+        self.library = library
 
         if logg:
             self.logging = logg
         else:
             self.logging = otl.ot_logging('ot_db_manager')
-
+        
         # we need to define columns before we can use the "get_columns" function
         self.columns_raw = None
         self.columns = None
@@ -32,46 +36,16 @@ class ot_db_manager:
         self.column_length = None
         self.column_precision = None
         self.column_scale = None
-        
+
+
 
         # register this object to execute "_on_delete" once faced with garbage collection --- close connection when object is no longer used.
         self._finalizer = weakref.finalize(self, self._on_delete)
 
         self.logging.info("creating connection")
         
-        
-        
         # create a connection with the DB defined by system for the provided user.
-        self.conn = pymysql.connect(
-            # driver='{IBM i Access ODBC Driver}',
-            host=system, #'10.100.20.68',
-            user=uid, #uid - user id?
-            password= pwd,
-            database=library) #password
         
-
-        # NOTE: https://stackoverflow.com/questions/66640552/pyodbc-utf-8-codec-cant-decode-byte-0xa0-in-position-n-invalid-start-byte
-        # self.conn.setdecoding(pyodbc.SQL_CHAR, encoding='utf-8')
-        # self.conn.setdecoding(pyodbc.SQL_WCHAR, encoding='utf-8')
-        # # self.conn.setdecoding(pyodbc.SQL_VARCHAR, encoding='utf-8')
-        # self.conn.setencoding(encoding='utf-8')
-
-        # ALTER TABLE statements to expand columns to fit data can take a bit.
-        # NOTE: THIS DOESNT DO ANYTHING; IBM DB2 timeout settings are handled at the system level.
-        #       Which means dynamically re-sizing columns might not be something we can do. 
-        #       Further: production level tables need to be sized appropriately 
-        #       FURTHER: mayber there is another reason why my transactions get cancelled during alter table statements. INVESTIGATE FURTHER
-        timeout_seconds = 60
-        # self.conn.timeout = timeout_seconds
-
-        # construct a cursor using the established connection
-        self.logging.info("creating cursor")
-        self.cu = self.conn.cursor() # allows to porcess indivudal rows
-
-        self.conn.autocommit = True
-
-        # NOTE: temporarily removed b/c it requires all content to be prepared into a single transatction
-        self.cu.fast_executemany = True 
 
         # save the provided table name for this db instance
         self.logging.info("Current table name:: " + table_name)
@@ -82,11 +56,32 @@ class ot_db_manager:
 
         self.get_columns()
 
+    def get_connection(self):
+        # Each thread gets its own connection
+        if not hasattr(thread_local, 'conn') or thread_local.conn is None or thread_local.conn._closed:
+            self.logging.info("Creating new database connection for thread.")
+            thread_local.conn = self.connect()
+        return thread_local.conn
+
+    def connect(self):
+
+        self.logging.info(f"Connecting to {self.system} with {self.uid} and {self.library}")
+        conn = pymysql.connect(
+            host=self.system,
+            user=self.uid,
+            password=self.pwd,
+            database=self.library
+        )
+
+        return conn
+
 
     def table_exists(self, table_name):
+        conn = self.get_connection()
+        cu = conn.cursor()
         query = f"SELECT table_name FROM information_schema.tables WHERE table_name = '{table_name}' AND table_schema = '{self.library}'"
-        self.cu.execute(query)
-        table_exists = self.cu.fetchone()  # Either contains the first row or None
+        cu.execute(query)
+        table_exists = cu.fetchone()  # Either contains the first row or None
 
         # check if the table exists
         if table_exists:
@@ -158,7 +153,6 @@ class ot_db_manager:
     # ASSUMPTION: the number of columns in the database will equal the number of columns in the provided df. Throw exception otherwise.
     # NOTE: HANDLING CHUNKS EXTERNAL TO THE WRAPPED_EXECUTE CALLING FUNCTION MAKES THIS WORK FOR SOME REASON.... IDK WHY
     def push_df_to_db(self, df, chunksize = 32767, silent = True, check_t_1 = True): 
-        print(df)
         # NOTE: make sure the data being uploaded is unique relative to the existing data; only need to do this once per-dataset
         if df.empty or check_t_1 and self.compare_df_to_db(df):
             return
@@ -419,9 +413,9 @@ class ot_db_manager:
 
         return self.wrapped_execute(query)
 
-    def fetch_all(self):
+    def fetch_all(self, cu):
         results = []
-        for row in self.cu.fetchall():
+        for row in cu.fetchall():
             results += [list(row)]
 
         return self.construct_df(results, self.columns_raw)
@@ -435,66 +429,62 @@ class ot_db_manager:
             df = pd.DataFrame(data = data, columns = columns)
         except Exception as e:
             try:
-                self.logging.error('failed df cons 1')
+                self.logging.error('failed construct_df@1')
                 self.logging.error(str(e))
                 df = pd.DataFrame(data = data)
                 self.logging.info('df constructed')
             except Exception as e:
-                self.logging.error('failed df cons 2 - no df')
+                self.logging.error('failed construct_df@2')
                 self.logging.error(str(e))
+
         return df
 
 
     # Wrapper for most execution cases we can encounter.
     # Includes simple error handling with rollback funcionality to minimze malformed queries being pushed to the database.
     def wrapped_execute(self, query, data = None, blob = False):
+        conn = self.get_connection()
+        cu = conn.cursor()
 
         self.logging.info('EXECUTING: ' + str(query))
-        if not blob:
-            self.logging.info('DATA: ' + str(data))
-        else:
-            self.logging.info(f'DATA: {data[0]} -- {str(len(str(data[1])))}' )
+
         try: 
             # NOTE: this seems to cause errors. commented out until resolvable
-            # self.conn.autocommit = auto_commit
+            # conn.autocommit = auto_commit
             
             if data:
                 if blob:
-                    self.cu.execute(query, (data[0], data[1].read()))
+                    cu.execute(query, (data[0], data[1].read()))
                 else:
-                    self.cu.executemany(query, data)
+                    cu.executemany(query, data)
                 # for i in data:
                 #     self.logging.info('executing query for :: ' + str(i))
-                #     self.cu.execute(query, i)
-                #self.cu.executemany(query, data)
+                #     cu.execute(query, i)
+                #cu.executemany(query, data)
             else:
-                self.cu.execute(query)
+                cu.execute(query)
             
-            self.logging.info(f'EXECUTED')
+            self.logging.debug(f'EXECUTED')
 
             # NOTE: falling back to always auto_commiting.
             # if(not auto_commit):
-            self.commit()
+            # if data:
+            self.commit(conn)
 
-
-            # self.logging.info('Number of affected rows: ' + str(self.cu.rowcount))
+            # self.logging.info('Number of affected rows: ' + str(cu.rowcount))
 
             # note the auto_commit param is in direct response to the below function. According to documentation the fetchall function will automatically commit changes.
             # I would like to maintain control over this functionality. Just in case.
-            if self.cu.description is None:
+            if cu.description is None:
                 return None
             else:
-                return self.fetch_all()
+                return self.fetch_all(cu)
 
         except Exception as e:
-            try:
-                self.rollback()
-            except Exception as ee:
-                self.logging.error(f'failed to rollback {ee}')
-            self.logging.error(str(e))
+            self.logging.error("wrapped_execute error: " + str(e))
         
         finally:
-            self.conn.autocommit = True
+            conn.autocommit = True
         
         return None
 
@@ -648,16 +638,19 @@ class ot_db_manager:
 
     def rollback(self):
         self.logging.info('Rolling back prior query')
-        self.conn.rollback()
+        conn = self.get_connection()
+        conn.rollback()
 
 
-    def commit(self):
-        self.conn.commit()
+    def commit(self, conn):
+        conn = self.get_connection()
+        conn.commit()
 
 
     def close(self):
         self.logging.info('CLOSING CONNECTION!')
-        self.conn.close()
+        conn = self.get_connection()
+        conn.close()
 
 
     #####################################################################################################################################

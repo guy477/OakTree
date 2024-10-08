@@ -1,4 +1,4 @@
-#!/bin/zsh
+#!/bin/bash
 
 # Navigate to the directory of the package
 cd ot_db_manager
