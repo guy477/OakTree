@@ -48,7 +48,7 @@ class ot_db_manager:
         
 
         # save the provided table name for this db instance
-        self.logging.info("Current table name:: " + table_name)
+        self.logging.debug("Current table name:: " + table_name)
         self.table_name = table_name
 
         self.library = library
@@ -85,10 +85,10 @@ class ot_db_manager:
 
         # check if the table exists
         if table_exists:
-            self.logging.info(f"The table '{table_name}' exists in the '{self.library}' schema.")
+            self.logging.debug(f"The table '{table_name}' exists in the '{self.library}' schema.")
             return True
         else:
-            self.logging.info(f"The table '{table_name}' does not exist in the '{self.library}' schema.")
+            self.logging.debug(f"The table '{table_name}' does not exist in the '{self.library}' schema.")
             return False
         
 
@@ -206,8 +206,8 @@ class ot_db_manager:
 
         if not existing_data.empty:
             df = df.astype(types)
-            self.logging.info(existing_data.reset_index(drop=True))
-            self.logging.info(df.reset_index(drop=True))
+            self.logging.debug(existing_data.reset_index(drop=True))
+            self.logging.debug(df.reset_index(drop=True))
     
             try:
                 pd.testing.assert_frame_equal(existing_data.reset_index(drop=True), df.reset_index(drop=True))
@@ -215,7 +215,7 @@ class ot_db_manager:
                 print(F'\nFETCHED DATA IS THE SAME AS PREVIOUS DAYS FOR: {self.table_name}')
                 return True
             except Exception as e:
-                self.logging.info(e)    
+                self.logging.error(e)    
         return False
 
         
@@ -432,7 +432,7 @@ class ot_db_manager:
                 self.logging.error('failed construct_df@1')
                 self.logging.error(str(e))
                 df = pd.DataFrame(data = data)
-                self.logging.info('df constructed')
+                self.logging.debug('df constructed')
             except Exception as e:
                 self.logging.error('failed construct_df@2')
                 self.logging.error(str(e))
@@ -446,7 +446,7 @@ class ot_db_manager:
         conn = self.get_connection()
         cu = conn.cursor()
 
-        self.logging.info('EXECUTING: ' + str(query))
+        self.logging.debug('EXECUTING: ' + str(query))
 
         try: 
             # NOTE: this seems to cause errors. commented out until resolvable
@@ -458,7 +458,7 @@ class ot_db_manager:
                 else:
                     cu.executemany(query, data)
                 # for i in data:
-                #     self.logging.info('executing query for :: ' + str(i))
+                #     self.logging.debug('executing query for :: ' + str(i))
                 #     cu.execute(query, i)
                 #cu.executemany(query, data)
             else:
@@ -471,7 +471,7 @@ class ot_db_manager:
             # if data:
             self.commit(conn)
 
-            # self.logging.info('Number of affected rows: ' + str(cu.rowcount))
+            # self.logging.debug('Number of affected rows: ' + str(cu.rowcount))
 
             # note the auto_commit param is in direct response to the below function. According to documentation the fetchall function will automatically commit changes.
             # I would like to maintain control over this functionality. Just in case.
@@ -623,12 +623,12 @@ class ot_db_manager:
         self.column_precision = [int(_) for _ in self.column_precision.tolist()]
         self.column_scale = [int(_) for _ in self.column_scale.tolist()]
 
-        self.logging.info("CURRENT COLUMNS_RAW: " + str(self.columns_raw))
-        self.logging.info("CURRENT COLUMNS: " + str(self.columns))
-        self.logging.info("CURRENT COLUMN_TYPE: " + str(self.column_type))
-        self.logging.info("CURRENT COLUMN_LENGTH: " + str(self.column_length))
-        self.logging.info("CURRENT COLUMN_PRECISION: " + str(self.column_precision))
-        self.logging.info("CURRENT COLUMN_SCALE: " + str(self.column_scale))
+        self.logging.debug("CURRENT COLUMNS_RAW: " + str(self.columns_raw))
+        self.logging.debug("CURRENT COLUMNS: " + str(self.columns))
+        self.logging.debug("CURRENT COLUMN_TYPE: " + str(self.column_type))
+        self.logging.debug("CURRENT COLUMN_LENGTH: " + str(self.column_length))
+        self.logging.debug("CURRENT COLUMN_PRECISION: " + str(self.column_precision))
+        self.logging.debug("CURRENT COLUMN_SCALE: " + str(self.column_scale))
 
     def set_table(self, new_table):
         if self.table_name != new_table:
@@ -637,7 +637,7 @@ class ot_db_manager:
 
 
     def rollback(self):
-        self.logging.info('Rolling back prior query')
+        self.logging.debug('Rolling back prior query')
         conn = self.get_connection()
         conn.rollback()
 

@@ -141,7 +141,12 @@ class OtLogging(logging.Logger):
                     df = pd.DataFrame([log_entry])
                     df.name = 'OTLOG'
                     self.sql_db.push_df_to_db(df, check_t_1=False)
+                elif self.sql_db:
+                    time.sleep(.25)
+                else:
+                    self.error(f"No database connection for log message: {log_entry}")
                 self.message_queue.task_done()
+                
             except Exception as e:
                 self.warning(f"Failed to process log entry: {e}")
 
