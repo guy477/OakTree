@@ -1,0 +1,12 @@
+{
+	"folders": [
+		{
+			"path": "../../OakTreeNet"
+		},
+		{
+			"name": "OakTree",
+			"path": ".."
+		}
+	],
+	"settings": {}
+}

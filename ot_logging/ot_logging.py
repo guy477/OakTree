@@ -1,6 +1,6 @@
+import os
 import logging
 from datetime import datetime
-import ot_db_manager
 from types import SimpleNamespace
 import time
 import pandas as pd
@@ -8,20 +8,35 @@ import weakref
 import threading
 import queue
 
+import ot_db_manager
 
 class OtLogging(logging.Logger):
     def __init__(self, process_name: str, args: SimpleNamespace = SimpleNamespace(), lvl: int = logging.DEBUG):
         self.message_queue = queue.Queue()
         self.process_name = process_name
         self.lvl = lvl
+        self._stop_event = threading.Event()
 
         # NOTE: args are the flags passed into a given program; if the provided arg has a value, we can use it to describe the process in more detail.
         true_attributes = [attr for attr, value in vars(args).items() if value is True]
         self.description = ','.join(true_attributes)
 
-        self.filename = f'/var/log/ot_logs/{process_name}_{self.description}_{datetime.now().strftime("%Y-%m-%d_%H")}.log'
+        self.filename = f'/home/im_ancient/OakTreeNet/_logs/{process_name}_{self.description}_{datetime.now().strftime("%Y-%m-%d")}.log'
 
         super().__init__(self.process_name, lvl)
+
+        # Set up the logger if it doesn't have handlers yet
+        if not self.hasHandlers():
+            formatter = logging.Formatter(
+                fmt=f'%(process)s|%(asctime)s.%(msecs)03d|{self.process_name}|%(lineno)d|%(levelname)s|%(message)s',
+                datefmt='%Y-%m-%d %H:%M:%S'
+            )
+            # Create a file handler
+            log_filename = f'/home/im_ancient/OakTreeNet/_logs/{process_name}_{datetime.now().strftime("%Y-%m-%d")}.log'
+            file_handler = logging.FileHandler(log_filename)
+            file_handler.setFormatter(formatter)
+            self.addHandler(file_handler)
+            self.propagate = False  # Prevent messages from propagating to the root logger
 
         self.set_execution_level()
 
@@ -38,9 +53,10 @@ class OtLogging(logging.Logger):
             level=lvl,
             filemode="w"
         )
+        
 
         
-        self.queue_thread = threading.Thread(target=self._process_queue, name='log_queue_thread', daemon=True)
+        self.queue_thread = threading.Thread(target=self._process_queue, name='log_queue_thread', daemon=False)
         self.queue_thread.start()
 
         
@@ -77,10 +93,10 @@ class OtLogging(logging.Logger):
         self.add_logging_level('EXECUTION', 100)
 
         self.sql_db = ot_db_manager.ot_db_manager(
-            system='100.98.39.58',
-            uid='writer',
-            pwd='LA-fcYg6SlqH',
-            library='STAGING',
+            system=os.getenv('DB_SYSTEM'),
+            uid=os.getenv('DB_UID'),
+            pwd=os.getenv('DB_PWD'),
+            library=os.getenv('DB_LIBRARY'),
             table_name='OTLOG',
             logg=self
         )
@@ -88,25 +104,25 @@ class OtLogging(logging.Logger):
 
     def execution(self, start: bool = True):
         message = 'START' if start else 'END'
-        logging.log(100, message)
+        super().log(100, message)
 
         # Add execution message to the queue
         self.enqueue_message('EXECUTION', message)
 
     def info(self, message: str):
-        logging.info(message)
+        super().info(message)
         self.enqueue_message('INFO', message)
 
     def warning(self, message: str):
-        logging.warning(message)
+        super().warning(message)
         self.enqueue_message('WARNING', message)
 
     def error(self, message: str):
-        logging.error(message)
+        super().error(message)
         self.enqueue_message('ERROR', message)
 
     def critical(self, message: str):
-        logging.critical(message)
+        super().critical(message)
         self.enqueue_message('CRITICAL', message)
 
     def enqueue_message(self, log_type: str, message: str):
@@ -118,7 +134,7 @@ class OtLogging(logging.Logger):
             message (str): The log message.
         """
 
-        if logging.getLevelName(log_type) < logging.INFO:
+        if logging.getLevelName(log_type) < self.lvl:
             return
 
         log_entry = {
@@ -134,9 +150,10 @@ class OtLogging(logging.Logger):
         """
         Process log messages from the queue and store them in the database.
         """
-        while True:
+        while not self._stop_event.is_set() or not self.message_queue.empty():
             try:
-                log_entry = self.message_queue.get()
+                log_entry = self.message_queue.get(timeout=0.5)
+                print(log_entry)
                 if log_entry and self.sql_db:
                     df = pd.DataFrame([log_entry])
                     df.name = 'OTLOG'
@@ -147,8 +164,15 @@ class OtLogging(logging.Logger):
                     self.error(f"No database connection for log message: {log_entry}")
                 self.message_queue.task_done()
                 
+            except queue.Empty:
+                continue
             except Exception as e:
                 self.warning(f"Failed to process log entry: {e}")
+
+    def close(self):
+        self._stop_event.set()
+        self.queue_thread.join()
+        self._finalizer()
 
     def _on_delete(self):
         print("The garbage eating monster is on its way to destroy the file. It's time to force close our connection.")
