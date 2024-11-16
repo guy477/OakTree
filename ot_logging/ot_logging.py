@@ -20,8 +20,7 @@ class OtLogging(logging.Logger):
         # NOTE: args are the flags passed into a given program; if the provided arg has a value, we can use it to describe the process in more detail.
         true_attributes = [attr for attr, value in vars(args).items() if value is True]
         self.description = ','.join(true_attributes)
-
-        self.filename = f'/home/im_ancient/OakTreeNet/_logs/{process_name}_{self.description}_{datetime.now().strftime("%Y-%m-%d")}.log'
+        self.filename = f'_logs/{process_name}_{self.description}_{datetime.now().strftime("%Y-%m-%d")}.log'
 
         super().__init__(self.process_name, lvl)
 
@@ -32,11 +31,12 @@ class OtLogging(logging.Logger):
                 datefmt='%Y-%m-%d %H:%M:%S'
             )
             # Create a file handler
-            log_filename = f'/home/im_ancient/OakTreeNet/_logs/{process_name}_{datetime.now().strftime("%Y-%m-%d")}.log'
+            log_filename = f'_logs/{process_name}_{datetime.now().strftime("%Y-%m-%d")}.log'
             file_handler = logging.FileHandler(log_filename)
             file_handler.setFormatter(formatter)
             self.addHandler(file_handler)
             self.propagate = False  # Prevent messages from propagating to the root logger
+
 
         self.set_execution_level()
 
