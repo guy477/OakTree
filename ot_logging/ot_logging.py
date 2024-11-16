@@ -92,15 +92,32 @@ class OtLogging(logging.Logger):
         self.log_to_db = True
         self.add_logging_level('EXECUTION', 100)
 
-        self.sql_db = ot_db_manager.ot_db_manager(
-            system=os.getenv('DB_SYSTEM'),
-            uid=os.getenv('DB_UID'),
-            pwd=os.getenv('DB_PWD'),
-            library=os.getenv('DB_LIBRARY'),
-            table_name='OTLOG',
-            logg=self
-        )
+        self.open_db_connection()
         self.execution(True)
+
+    def open_db_connection(self):
+        max_retries = 3
+        retry_delay = 1  # seconds
+        
+        for attempt in range(max_retries):
+            try:
+                self.info(f"Opening connection to database (attempt {attempt + 1}/{max_retries})")
+                self.sql_db = ot_db_manager.ot_db_manager(
+                    system=os.getenv('DB_SYSTEM'),
+                    uid=os.getenv('DB_UID'),
+                    pwd=os.getenv('DB_PWD'),
+                    library=os.getenv('DB_LIBRARY'),
+                    table_name='OTLOG',
+                    logg=self
+                )
+                return
+            except Exception as e:
+                if attempt < max_retries - 1:
+                    self.warning(f"Failed to connect to database: {str(e)}. Retrying in {retry_delay} seconds...")
+                    time.sleep(retry_delay)
+                else:
+                    self.error(f"Failed to connect to database after {max_retries} attempts: {str(e)}")
+                    raise
 
     def execution(self, start: bool = True):
         message = 'START' if start else 'END'
@@ -153,21 +170,24 @@ class OtLogging(logging.Logger):
         while not self._stop_event.is_set() or not self.message_queue.empty():
             try:
                 log_entry = self.message_queue.get(timeout=0.5)
-                print(log_entry)
-                if log_entry and self.sql_db:
-                    df = pd.DataFrame([log_entry])
-                    df.name = 'OTLOG'
-                    self.sql_db.push_df_to_db(df, check_t_1=False)
-                elif self.sql_db:
-                    time.sleep(.25)
-                else:
+                if not log_entry:
+                    continue
+                    
+                if not self.sql_db:
                     self.error(f"No database connection for log message: {log_entry}")
+                    self.open_db_connection()
+
+                df = pd.DataFrame([log_entry])
+                df.name = 'OTLOG'
+                self.sql_db.push_df_to_db(df, check_t_1=False)
                 self.message_queue.task_done()
                 
             except queue.Empty:
-                continue
+                time.sleep(0.25)
             except Exception as e:
                 self.warning(f"Failed to process log entry: {e}")
+                # Don't mark task as done if it failed to process
+                continue
 
     def close(self):
         self._stop_event.set()
