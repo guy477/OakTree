@@ -30,9 +30,13 @@ class OtLogging(logging.Logger):
                 fmt=f'%(process)s|%(asctime)s.%(msecs)03d|{self.process_name}|%(lineno)d|%(levelname)s|%(message)s',
                 datefmt='%Y-%m-%d %H:%M:%S'
             )
-            # Create a file handler
+            # Create a file handler with rotation at 10MB
             log_filename = f'_logs/{process_name}_{datetime.now().strftime("%Y-%m-%d")}.log'
-            file_handler = logging.FileHandler(log_filename)
+            file_handler = logging.handlers.RotatingFileHandler(
+                log_filename,
+                maxBytes=10 * 1024 * 1024,  # 10 MB
+                backupCount=2  # Keep 5 backup files
+            )
             file_handler.setFormatter(formatter)
             self.addHandler(file_handler)
             self.propagate = False  # Prevent messages from propagating to the root logger
