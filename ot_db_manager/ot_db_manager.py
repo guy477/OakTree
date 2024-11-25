@@ -429,8 +429,8 @@ class ot_db_manager:
             df = pd.DataFrame(data = data, columns = columns)
         except Exception as e:
             try:
-                self.logging.info('failed construct_df@1')
-                self.logging.info(str(e))
+                self.logging.debug('failed construct_df@1')
+                self.logging.debug(str(e))
                 df = pd.DataFrame(data = data)
                 self.logging.debug('df constructed')
             except Exception as e:
