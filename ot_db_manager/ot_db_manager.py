@@ -45,7 +45,8 @@ class ot_db_manager:
         self.logging.info("creating connection")
         
         # create a connection with the DB defined by system for the provided user.
-        
+
+
 
         # save the provided table name for this db instance
         self.logging.debug("Current table name:: " + table_name)
@@ -61,6 +62,12 @@ class ot_db_manager:
         if not hasattr(thread_local, 'conn') or thread_local.conn is None or thread_local.conn._closed:
             self.logging.info("Creating new database connection for thread.")
             thread_local.conn = self.connect()
+        else:
+            try:
+                thread_local.conn.ping(reconnect=True)
+            except pymysql.MySQLError as e:
+                self.logging.warning(f"Connection lost. Reconnecting. Error: {e}")
+                thread_local.conn = self.connect()
         return thread_local.conn
 
     def connect(self):
@@ -70,7 +77,8 @@ class ot_db_manager:
             host=self.system,
             user=self.uid,
             password=self.pwd,
-            database=self.library
+            database=self.library,
+            autocommit=False  # Ensure autocommit is disabled to manage transactions manually
         )
 
         return conn
@@ -105,7 +113,6 @@ class ot_db_manager:
 
         return equal_columns    
     
-
     # NOTE: Assumes the global column definitions are accurate
     def fill_df_na(self, df):
         # df = df.replace(np.nan, 0).applymap(lambda x: x.replace('\x00', '') if type(x) == type('') else x).astype(str).where(pd.notna(df), None)
@@ -197,7 +204,7 @@ class ot_db_manager:
         existing_data = existing_data.iloc[::-1, 2:]
         existing_data = existing_data.astype(df.dtypes)
         types = df.dtypes
-        
+
 
 
         df = self.fill_df_na(df)
@@ -219,7 +226,6 @@ class ot_db_manager:
         return False
 
         
-
 
     def push_df_to_db_helper(self, df):
         
@@ -449,9 +455,9 @@ class ot_db_manager:
         self.logging.debug('EXECUTING: ' + str(query))
 
         try: 
-            # NOTE: this seems to cause errors. commented out until resolvable
-            # conn.autocommit = auto_commit
-            
+            # Ensure the connection is active
+            conn.ping(reconnect=True)
+
             if data:
                 if blob:
                     cu.execute(query, (data[0], data[1].read()))
@@ -480,12 +486,22 @@ class ot_db_manager:
             else:
                 return self.fetch_all(cu)
 
+        except pymysql.MySQLError as e:
+            self.logging.error(f"wrapped_execute error: {e}")
+            # Attempt to reconnect on error
+            self.logging.info("Attempting to reconnect due to wrapped_execute error.")
+            thread_local.conn = self.connect()
         except Exception as e:
-            self.logging.error("wrapped_execute error: " + str(e))
+            self.logging.error(f"wrapped_execute unexpected error: {e}")
+            # Depending on the nature of the error, you might want to reconnect
+            thread_local.conn = self.connect()
         
         finally:
-            conn.autocommit = True
-        
+            try:
+                conn.autocommit(True)
+            except pymysql.MySQLError as e:
+                self.logging.error(f"Error setting autocommit in finally: {e}")
+
         return None
 
 

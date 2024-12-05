@@ -101,11 +101,11 @@ class OtLogging(logging.Logger):
 
     def open_db_connection(self):
         max_retries = 3
-        retry_delay = 1  # seconds
+        retry_delay = 15  # seconds
         
         for attempt in range(max_retries):
             try:
-                self.info(f"Opening connection to database (attempt {attempt + 1}/{max_retries})")
+                self.info(f"Opening connection to database (attempt {attempt + 1}/{max_retries})", enqueue=False)
                 self.sql_db = ot_db_manager.ot_db_manager(
                     system=os.getenv('DB_SYSTEM'),
                     uid=os.getenv('DB_UID'),
@@ -117,10 +117,10 @@ class OtLogging(logging.Logger):
                 return
             except Exception as e:
                 if attempt < max_retries - 1:
-                    self.warning(f"Failed to connect to database: {str(e)}. Retrying in {retry_delay} seconds...")
+                    self.warning(f"Failed to connect to database: {str(e)}. Retrying in {retry_delay} seconds...", enqueue=False)
                     time.sleep(retry_delay)
                 else:
-                    self.error(f"Failed to connect to database after {max_retries} attempts: {str(e)}")
+                    self.error(f"Failed to connect to database after {max_retries} attempts: {str(e)}", enqueue=False)
                     raise
 
     def execution(self, start: bool = True):
@@ -130,21 +130,25 @@ class OtLogging(logging.Logger):
         # Add execution message to the queue
         self.enqueue_message('EXECUTION', message)
 
-    def info(self, message: str):
+    def info(self, message: str, enqueue: bool = True):
         super().info(message)
-        self.enqueue_message('INFO', message)
+        if enqueue:
+            self.enqueue_message('INFO', message)
 
-    def warning(self, message: str):
+    def warning(self, message: str, enqueue: bool = True):
         super().warning(message)
-        self.enqueue_message('WARNING', message)
+        if enqueue:
+            self.enqueue_message('WARNING', message)
 
-    def error(self, message: str):
+    def error(self, message: str, enqueue: bool = True):
         super().error(message)
-        self.enqueue_message('ERROR', message)
+        if enqueue:
+            self.enqueue_message('ERROR', message)
 
-    def critical(self, message: str):
+    def critical(self, message: str, enqueue: bool = True):
         super().critical(message)
-        self.enqueue_message('CRITICAL', message)
+        if enqueue:
+            self.enqueue_message('CRITICAL', message)
 
     def enqueue_message(self, log_type: str, message: str):
         """
@@ -178,7 +182,7 @@ class OtLogging(logging.Logger):
                     continue
                     
                 if not self.sql_db:
-                    self.error(f"No database connection for log message: {log_entry}")
+                    self.error(f"No database connection for log message: {log_entry}", enqueue=False)
                     self.open_db_connection()
 
                 df = pd.DataFrame([log_entry])
@@ -189,7 +193,7 @@ class OtLogging(logging.Logger):
             except queue.Empty:
                 time.sleep(0.25)
             except Exception as e:
-                self.warning(f"Failed to process log entry: {e}")
+                self.warning(f"Failed to process log entry: {e}", enqueue=False)
                 # Don't mark task as done if it failed to process
                 continue
 
