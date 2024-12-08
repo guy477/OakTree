@@ -30,7 +30,3 @@ cd ot_logging
 pip install .
 
 cd ..
-
-# Pause and wait for user input before closing
-read -p "Press [Enter] key to continue..."
-
