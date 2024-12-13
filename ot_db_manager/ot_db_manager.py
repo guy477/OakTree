@@ -462,7 +462,7 @@ class ot_db_manager:
                 if blob:
                     cu.execute(query, (data[0], data[1].read()))
                 else:
-                    cu.execute(query, data)
+                    cu.executemany(query, data)
                 # for i in data:
                 #     self.logging.debug('executing query for :: ' + str(i))
                 #     cu.execute(query, i)
