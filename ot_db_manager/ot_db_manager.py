@@ -462,7 +462,7 @@ class ot_db_manager:
                 if blob:
                     cu.execute(query, (data[0], data[1].read()))
                 else:
-                    cu.executemany(query, data)
+                    cu.execute(query, data)
                 # for i in data:
                 #     self.logging.debug('executing query for :: ' + str(i))
                 #     cu.execute(query, i)
@@ -495,7 +495,6 @@ class ot_db_manager:
             self.logging.error(f"wrapped_execute unexpected error: {e}")
             # Depending on the nature of the error, you might want to reconnect
             thread_local.conn = self.connect()
-            raise e
         
         finally:
             try:
