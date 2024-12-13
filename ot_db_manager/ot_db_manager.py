@@ -495,6 +495,7 @@ class ot_db_manager:
             self.logging.error(f"wrapped_execute unexpected error: {e}")
             # Depending on the nature of the error, you might want to reconnect
             thread_local.conn = self.connect()
+            raise e
         
         finally:
             try:
