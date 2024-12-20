@@ -2,20 +2,16 @@
 
 # Make sure you have your conda environment activated before running this script
 
+# Check if running as root and set base directory accordingly
+if [ "$EUID" -eq 0 ]; then
+    cd /root/OakTree/
+fi
+
 # Navigate to the directory of the package
 cd ot_db_manager
 
-# conda init zsh
-
-# source ~/.bashrc
-# Activate CONDA ENV BEFORE RUNNING
-# conda activate OT_NET
-# conda activate OT_NET
-
 # Install the ot_logging package
 pip install .
-#conda install -n OT_NET .
-#conda run -n OT_NET python -m install .
 
 cd ..
 
